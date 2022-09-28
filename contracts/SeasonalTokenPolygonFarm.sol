@@ -240,11 +240,11 @@ contract SeasonalTokenFarm is ERC721TokenReceiver {
 
         require(msg.sender == from, "Tokens must be donated by the address that owns them.");
         
-        allocateIncomingTokensToTradingPairs(tokenAddress, amount);
+        SafeERC20.safeTransferFrom(ERC20Interface(tokenAddress), from, address(this), amount);
 
+        allocateIncomingTokensToTradingPairs(tokenAddress, amount);
         emit Donate(from, tokenAddress, amount);
 
-        SafeERC20.safeTransferFrom(ERC20Interface(tokenAddress), from, address(this), amount);
     }
 
     function onERC721Received(address _operator, address _from, uint256 liquidityTokenId, bytes calldata _data) 
