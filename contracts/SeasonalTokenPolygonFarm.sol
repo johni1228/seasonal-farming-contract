@@ -6,6 +6,7 @@ import "../interfaces/ERC20.sol";
 import "../interfaces/ERC721TokenReceiver.sol";
 import "../interfaces/INonfungiblePositionManager.sol";
 import "./safeTransferFrom.sol";
+import "../interfaces/TransferHelper.sol";
 
 
 /*
@@ -518,6 +519,22 @@ contract SeasonalTokenFarm is ERC721TokenReceiver {
         }
         tokenOfOwnerByIndex[owner].pop();
         delete liquidityTokens[liquidityTokenId];
+    }
+
+    function _sendToOwner(
+        uint256 tokenId,
+        uint256 amount0,
+        uint256 amount1
+    ) internal {
+        // get owner of contract
+        address token0;
+        address token1;
+        address owner = liquidityTokens[tokenId].owner;
+        ( token0, token1,,,, ) = getPositionDataForLiquidityToken(tokenId);
+
+        // send collected fees to owner
+        TransferHelper.safeTransfer(token0, owner, amount0);
+        TransferHelper.safeTransfer(token1, owner, amount1);
     }
 
 }
