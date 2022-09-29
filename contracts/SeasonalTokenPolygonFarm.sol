@@ -7,6 +7,7 @@ import '@uniswap/v3-core/contracts/libraries/FixedPoint128.sol';
 import '@uniswap/v3-core/contracts/libraries/FullMath.sol';
 import '@uniswap/v3-periphery/contracts/libraries/PositionKey.sol';
 import '@uniswap/v3-periphery/contracts/libraries/PoolAddress.sol';
+import '@openzeppelin/contracts/utils/structs/EnumerableSet.sol';
 import "../interfaces/ERC20.sol";
 import "../interfaces/ERC721TokenReceiver.sol";
 import "../interfaces/INonfungiblePositionManager.sol";
@@ -73,6 +74,9 @@ contract SeasonalTokenFarm is ERC721TokenReceiver {
     // payouts received. The fraction of farm rewards allocated to Spring, for example, 
     // is 10/(10+12+14+16) = 5/(5+6+7+8).
 
+    using UintSet for UintSet.Set;
+    UintSet.Set uintSet;
+
     uint256 public constant REALLOCATION_INTERVAL = (365 * 24 * 60 * 60 * 3) / 4; // 9 months
     address factory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
 
@@ -97,7 +101,7 @@ contract SeasonalTokenFarm is ERC721TokenReceiver {
     // token owners in proportion to the liquidity they have provided.
 
     mapping(address => uint256) public totalLiquidity;
-    mapping(address => uint256[]) public tokenOfOwnerByIndex;
+    mapping(address => uintSet) public tokenOfOwnerByIndex;
     mapping(uint256 => LiquidityToken) public liquidityTokens;
 
     address public immutable springTokenAddress;
@@ -150,7 +154,7 @@ contract SeasonalTokenFarm is ERC721TokenReceiver {
     }
 
     function balanceOf(address liquidityProvider) external view returns (uint256) {
-        return tokenOfOwnerByIndex[liquidityProvider].length;
+        return tokenOfOwnerByIndex[liquidityProvider].length();
     }
 
     function numberOfReallocations() internal view returns (uint256) {
@@ -264,8 +268,8 @@ contract SeasonalTokenFarm is ERC721TokenReceiver {
         liquidityToken.owner = _from;
         liquidityToken.depositTime = block.timestamp;
 
-        liquidityToken.position = tokenOfOwnerByIndex[_from].length;
-        tokenOfOwnerByIndex[_from].push(liquidityTokenId);
+        liquidityToken.position = tokenOfOwnerByIndex[_from].length();
+        tokenOfOwnerByIndex[_from].add(liquidityTokenId);
 
         liquidityToken.initialCumulativeSpringTokensFarmed
             = cumulativeTokensFarmedPerUnitLiquidity[liquidityToken.seasonalToken][springTokenAddress];
@@ -514,15 +518,14 @@ contract SeasonalTokenFarm is ERC721TokenReceiver {
         // to remove an element from a list efficiently, we copy the last element in the list into the
         // position of the element we want to remove, and then remove the last element from the list
 
-        uint256 length = tokenOfOwnerByIndex[owner].length;
+        uint256 length = tokenOfOwnerByIndex[owner].length();
         if (length > 1) {
-            uint256 liquidityTokenIdOfLastTokenInList = tokenOfOwnerByIndex[owner][length - 1];
+            uint256 liquidityTokenIdOfLastTokenInList = tokenOfOwnerByIndex[owner].at(length - 1);
             LiquidityToken memory lastToken = liquidityTokens[liquidityTokenIdOfLastTokenInList];
             lastToken.position = index;
-            tokenOfOwnerByIndex[owner][index] = liquidityTokenIdOfLastTokenInList;
             liquidityTokens[liquidityTokenIdOfLastTokenInList] = lastToken;
         }
-        tokenOfOwnerByIndex[owner].pop();
+        tokenOfOwnerByIndex[owner].remove(liquidityTokenId);
         delete liquidityTokens[liquidityTokenId];
     }
 
