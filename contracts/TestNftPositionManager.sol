@@ -4,6 +4,8 @@
 pragma solidity ^0.8.5;
 pragma abicoder v2;
 
+import '@uniswap/v3-periphery/contracts/libraries/PositionKey.sol';
+import '@uniswap/v3-periphery/contracts/libraries/PoolAddress.sol';
 import "../interfaces/ERC721TokenReceiver.sol";
 import "../interfaces/INonfungiblePositionManager.sol";
 

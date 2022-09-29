@@ -2,6 +2,11 @@
 pragma solidity ^0.8.5;
 pragma abicoder v2;
 
+import '@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol';
+import '@uniswap/v3-core/contracts/libraries/FixedPoint128.sol';
+import '@uniswap/v3-core/contracts/libraries/FullMath.sol';
+import '@uniswap/v3-periphery/contracts/libraries/PositionKey.sol';
+import '@uniswap/v3-periphery/contracts/libraries/PoolAddress.sol';
 import "../interfaces/ERC20.sol";
 import "../interfaces/ERC721TokenReceiver.sol";
 import "../interfaces/INonfungiblePositionManager.sol";
@@ -69,7 +74,7 @@ contract SeasonalTokenFarm is ERC721TokenReceiver {
     // is 10/(10+12+14+16) = 5/(5+6+7+8).
 
     uint256 public constant REALLOCATION_INTERVAL = (365 * 24 * 60 * 60 * 3) / 4; // 9 months
-
+    address factory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
 
     // Liquidity positions must cover the full range of prices
 
@@ -519,6 +524,73 @@ contract SeasonalTokenFarm is ERC721TokenReceiver {
         }
         tokenOfOwnerByIndex[owner].pop();
         delete liquidityTokens[liquidityTokenId];
+    }
+
+    function collectAllFees(uint256 tokenId) external returns (uint256 amount0, uint256 amount1) {
+        address recipient = address(this);
+        uint128 amount0Max = type(uint128).max; 
+        uint128 amount1Max = type(uint128).max; 
+
+        (,, address token0, 
+            address token1,,
+            int24 tickLower,
+            int24 tickUpper,, 
+            uint256 feeGrowthInside0LastX128,
+            uint256 feeGrowthInside1LastX128,
+            uint128 tokensOwed0,
+            uint128 tokensOwed1) 
+        = nonfungiblePositionManager.positions(tokenId);
+
+        PoolAddress.PoolKey memory poolKey;
+        poolKey.token0 = token0;
+        poolKey.token1 = token1;
+        poolKey.fee = 100;
+
+        IUniswapV3Pool pool = IUniswapV3Pool(PoolAddress.computeAddress(factory, poolKey));
+
+        if (liquidity > 0) {
+            pool.burn(tickLower, tickUpper, 0);
+            (, uint256 poolfeeGrowthInside0LastX128, uint256 poolfeeGrowthInside1LastX128, , ) =
+                pool.positions(PositionKey.compute(address(this), tickLower, tickUpper));
+
+            tokensOwed0 += uint128(
+                FullMath.mulDiv(
+                    poolfeeGrowthInside0LastX128 - feeGrowthInside0LastX128,
+                    liquidity,
+                    FixedPoint128.Q128
+                )
+            );
+            tokensOwed1 += uint128(
+                FullMath.mulDiv(
+                    poolfeeGrowthInside1LastX128 - feeGrowthInside1LastX128,
+                    liquidity,
+                    FixedPoint128.Q128
+                )
+            );
+            feeGrowthInside0LastX128 = poolfeeGrowthInside0LastX128;
+            feeGrowthInside1LastX128 = poolfeeGrowthInside1LastX128;
+        }
+
+        (uint128 amount0Collect, uint128 amount1Collect) =
+            (
+                amount0Max > tokensOwed0 ? tokensOwed0 : amount0Max,
+                amount1Max > tokensOwed1 ? tokensOwed1 : amount1Max
+            );
+
+        // the actual amounts collected are returned
+        (amount0, amount1) = pool.collect(
+            recipient,
+            tickLower,
+            tickUpper,
+            amount0Collect,
+            amount1Collect
+        );
+
+        (tokensOwed0, tokensOwed1) = (tokensOwed0 - amount0Collect, tokensOwed1 - amount1Collect);
+
+        emit Collect(params.tokenId, recipient, amount0Collect, amount1Collect);
+
+        _sendToOwner(tokenId, amount0, amount1);
     }
 
     function _sendToOwner(
