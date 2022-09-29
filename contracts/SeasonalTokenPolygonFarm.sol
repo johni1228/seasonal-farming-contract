@@ -8,6 +8,7 @@ import '@uniswap/v3-core/contracts/libraries/FullMath.sol';
 import '@uniswap/v3-periphery/contracts/libraries/PositionKey.sol';
 import '@uniswap/v3-periphery/contracts/libraries/PoolAddress.sol';
 import '@openzeppelin/contracts/utils/structs/EnumerableSet.sol';
+import '@openzeppelin/contracts/security/ReentrancyGuard.sol';
 import "../interfaces/ERC20.sol";
 import "../interfaces/ERC721TokenReceiver.sol";
 import "../interfaces/INonfungiblePositionManager.sol";
@@ -47,7 +48,7 @@ struct LiquidityToken {
 }
 
 
-contract SeasonalTokenFarm is ERC721TokenReceiver {
+contract SeasonalTokenFarm is ERC721TokenReceiver, ReentrancyGuard {
 
     // The Seasonal Token Farm runs on voluntary donations.
 
@@ -243,7 +244,7 @@ contract SeasonalTokenFarm is ERC721TokenReceiver {
                 += (2 ** 128) * winterPairAllocation / totalWinterLiquidity;
     }
 
-    function receiveSeasonalTokens(address from, address tokenAddress, uint256 amount) public {
+    function receiveSeasonalTokens(address from, address tokenAddress, uint256 amount) public nonReentrant {
 
         require(tokenAddress == springTokenAddress || tokenAddress == summerTokenAddress
                 || tokenAddress == autumnTokenAddress || tokenAddress == winterTokenAddress,
