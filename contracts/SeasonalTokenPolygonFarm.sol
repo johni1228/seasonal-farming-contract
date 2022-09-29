@@ -142,6 +142,7 @@ contract SeasonalTokenFarm is ERC721TokenReceiver {
                  address wethAddress_,
                  uint256 startTime_) {
 
+        require(startTime_ >= block.timestamp, 'Not validate start_time');
         nonfungiblePositionManager = nonfungiblePositionManager_;
 
         springTokenAddress = springTokenAddress_;
